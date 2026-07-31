@@ -1,4 +1,3 @@
-# https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.hypergeom.html
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from scipy.stats import hypergeom
@@ -14,7 +13,6 @@ class HypergeometricRequest(BaseModel):
     successes_in_population: int = Field(ge=0)      # how many "hits" exist
     draws: int = Field(gt=0)                        # how many items are drawn w/o replacement
     at_least: int = Field(default=1, ge=0)          # threshold for the "probability" field
-
 
 @app.post("/probability/hypergeometric")
 def hypergeometric(req: HypergeometricRequest):
@@ -73,3 +71,22 @@ def combine(dist_a: Counter, dist_b: Counter) -> Counter:
             combined[outcome_a + outcome_b] += count_a * count_b
     return combined
 
+def dice_distribution(count: int, sides: int, modifier: int) -> Counter:
+    # Distribution for a single die: each face has weight 1
+    single_die = Counter({face: 1 for face in range(1, sides + 1)})
+
+    # Starting point before any dice are rolled. Let's the first combine()
+    # call fold in the first die without needing special-case logic.
+    total = Counter({0: 1})
+    for _ in range(count):
+        total = combine(total, single_die)
+
+    # Modifier applied once to the whole roll, added after all dice have been
+    # combined.
+    shifted = Counter({outcome + modifier: weight for outcome, weight in total.items()})
+    return shifted
+
+def normalize(distribution: Counter, sides: int, count: int) -> dict:
+    # Normalizes dice distribution outcomes into actual probabilities
+    total_outcomes = sides ** count
+    return {outcome: weight / total_outcomes for outcome, weight in distribution.items()}
