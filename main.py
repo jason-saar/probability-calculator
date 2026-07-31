@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from scipy.stats import hypergeom
 import re
+from collections import Counter
 
 app = FastAPI()
 
@@ -59,3 +60,16 @@ def dice_range_stats(counts: int, sides: int, modifier: int):
     # so multiply by count, then add the modifier
     expected_value = counts * (1 + sides) / 2 + modifier
     return min_value, max_value, expected_value
+
+def combine(dist_a: Counter, dist_b: Counter) -> Counter:
+    # For every possible outcome pair, the combined sum's weight
+    # is the product of the two individual weights.
+    # Example: combine({1: 1, 2: 1}, {1: 1, 2: 1}) - 2d2/coins
+    #          -> Counter({2: 1}, {3: 2}, {4: 1})
+    # i.e. one way to roll a 2, two ways to roll a 3, one way to roll a 4
+    combined = Counter()
+    for outcome_a, count_a in dist_a.items():
+        for outcome_b, count_b in dist_b.items():
+            combined[outcome_a + outcome_b] += count_a * count_b
+    return combined
+
