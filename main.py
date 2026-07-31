@@ -48,3 +48,14 @@ def parse_dice_notation(notation: str):
     modifier = int(match.group(3)) if match.group(3) else 0
 
     return count, sides, modifier
+
+def dice_range_stats(counts: int, sides: int, modifier: int):
+    # Worst case: every die rolls 1
+    min_value = counts * 1 + modifier
+    # Best case: every die rolls its max value
+    max_value = counts * sides + modifier
+    # Avg roll of a single die is (1 + sides) / 2
+    # Expected values add linearly across independent dice,
+    # so multiply by count, then add the modifier
+    expected_value = counts * (1 + sides) / 2 + modifier
+    return min_value, max_value, expected_value
