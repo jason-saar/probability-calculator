@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from scipy.stats import hypergeom
 import re
@@ -13,6 +13,9 @@ class HypergeometricRequest(BaseModel):
     successes_in_population: int = Field(ge=0)      # how many "hits" exist
     draws: int = Field(gt=0)                        # how many items are drawn w/o replacement
     at_least: int = Field(default=1, ge=0)          # threshold for the "probability" field
+
+class DiceRequest(BaseModel):
+    dice: str   # dice notation string e.g. "2d6+3"
 
 @app.post("/probability/hypergeometric")
 def hypergeometric(req: HypergeometricRequest):
@@ -33,6 +36,26 @@ def hypergeometric(req: HypergeometricRequest):
 
     return {"distribution": distribution, "probability": probability}
 
+@app.post("/probability/dice")
+def dice(req: DiceRequest):
+    result = parse_dice_notation(req.dice)
+    # Expected notation: (int)d(int)[+-int]
+    if result is None:
+        raise HTTPException(status_code=400, detail="invalid dice notation")
+
+    count, sides, modifier = result
+    min_value, max_value, expected_value = dice_range_stats(count, sides, modifier)
+    distribution = dice_distribution(count, sides, modifier)
+    probabilities = normalize(distribution, sides, count)
+
+    return {
+        "min": min_value,
+        "max": max_value,
+        "expected_value": expected_value,
+        # Rounded here at the response boundary only, normalize() stays full-precision
+        "distribution": {k: round(v, 4) for k, v in probabilities.items()}}
+    
+
 def parse_dice_notation(notation: str):
     # Matches strings like "2d6+3" or "1d20-2" or "1d20"
     # Group 1: # of dice, Group 2: sides per die, Group 3: sign + number (optional)
@@ -48,15 +71,15 @@ def parse_dice_notation(notation: str):
 
     return count, sides, modifier
 
-def dice_range_stats(counts: int, sides: int, modifier: int):
+def dice_range_stats(count: int, sides: int, modifier: int):
     # Worst case: every die rolls 1
-    min_value = counts * 1 + modifier
+    min_value = count * 1 + modifier
     # Best case: every die rolls its max value
-    max_value = counts * sides + modifier
+    max_value = count * sides + modifier
     # Avg roll of a single die is (1 + sides) / 2
     # Expected values add linearly across independent dice,
     # so multiply by count, then add the modifier
-    expected_value = counts * (1 + sides) / 2 + modifier
+    expected_value = count * (1 + sides) / 2 + modifier
     return min_value, max_value, expected_value
 
 def combine(dist_a: Counter, dist_b: Counter) -> Counter:
