@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from scipy.stats import hypergeom
+import re
 
 app = FastAPI()
 
@@ -32,3 +33,18 @@ def hypergeometric(req: HypergeometricRequest):
     probability = sum(distribution[req.at_least:])
 
     return {"distribution": distribution, "probability": probability}
+
+def parse_dice_notation(notation: str):
+    # Matches strings like "2d6+3" or "1d20-2" or "1d20"
+    # Group 1: # of dice, Group 2: sides per die, Group 3: sign + number (optional)
+    # Python int() handles leading sign directly, so group 3 is captured as one group
+    match = re.match(r"^(\d+)d(\d+)([+-]\d+)?$", notation)
+    if not match:
+        return None     # signals malformed input to the caller
+
+    count = int(match.group(1))
+    sides = int(match.group(2))
+    # Modifier defaults to 0 when absent
+    modifier = int(match.group(3)) if match.group(3) else 0
+
+    return count, sides, modifier
